@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Laboratorio SOC – Attack Chain RDP | Wazuh SIEM</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #0a0f1c;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      color: #e8edf5;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* HEADER */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 15px;
+      margin-bottom: 25px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid #2a3a5a;
+    }
+
+    .header h1 {
+      font-size: 1.5rem;
+      color: #4a9eff;
+    }
+
+    .badge {
+      background: #1e2a3a;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+    }
+
+    .badge-blue { background: #1e3a5f; color: #6eb3ff; }
+    .badge-red { background: #5f1e2a; color: #ff6b6b; }
+    .badge-yellow { background: #5f4a1e; color: #ffd966; }
+    .badge-green { background: #1e5f3a; color: #6bff9e; }
+
+    /* CONTROLES */
+    .controls-bar {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: all 0.2s;
+    }
+
+    .btn-primary { background: #4a9eff; color: #0a0f1c; }
+    .btn-primary:hover { background: #6eb3ff; }
+    .btn-secondary { background: #2a3a5a; color: #e8edf5; }
+    .btn-secondary:hover { background: #3a4a6a; }
+    .btn-danger { background: #d9534f; color: white; }
+    .btn-danger:hover { background: #c9302c; }
+    .btn-warning { background: #f0ad4e; color: #0a0f1c; }
+    .btn-warning:hover { background: #ec971f; }
+
+    /* GRID MÉTRICAS */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .metric-card {
+      background: #111827;
+      border: 1px solid #2a3a5a;
+      border-radius: 12px;
+      padding: 15px;
+      text-align: center;
+    }
+
+    .metric-value {
+      font-size: 2rem;
+      font-weight: bold;
+      color: #4a9eff;
+    }
+
+    .metric-label {
+      font-size: 0.8rem;
+      color: #8a9abb;
+      margin-top: 5px;
+    }
+
+    /* KILL CHAIN */
+    .killchain-panel {
+      background: #111827;
+      border: 1px solid #2a3a5a;
+      border-radius: 12px;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+
+    .killchain-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 15px;
+    }
+
+    .killchain-phase {
+      flex: 1;
+      text-align: center;
+      padding: 10px;
+      background: #0a0f1c;
+      border-radius: 8px;
+      border: 1px solid #2a3a5a;
+    }
+
+    .killchain-phase.completed {
+      background: #1a3a5f;
+      border-color: #4a9eff;
+    }
+
+    .phase-name { font-size: 0.7rem; color: #8a9abb; }
+    .phase-status { font-size: 1.2rem; margin-top: 5px; }
+
+    /* DASHBOARD GRID */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    /* TABLA DE EVENTOS */
+    .events-panel {
+      background: #111827;
+      border: 1px solid #2a3a5a;
+      border-radius: 12px;
+      padding: 15px;
+    }
+
+    .events-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    .events-table th,
+    .events-table td {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 1px solid #2a3a5a;
+    }
+
+    .events-table th {
+      color: #4a9eff;
+      font-size: 0.75rem;
+    }
+
+    .events-table tr {
+      cursor: pointer;
+    }
+
+    .events-table tr:hover {
+      background: #1a2538;
+    }
+
+    .status-failed { color: #ff6b6b; font-weight: bold; }
+    .status-success { color: #6bff9e; font-weight: bold; }
+    .status-process { color: #ffd966; font-weight: bold; }
+
+    .phase-badge {
+      font-size: 0.7rem;
+      padding: 2px 6px;
+      border-radius: 10px;
+      background: #1e3a5f;
+    }
+
+    /* PANEL DERECHO */
+    .right-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .info-panel {
+      background: #111827;
+      border: 1px solid #2a3a5a;
+      border-radius: 12px;
+      padding: 15px;
+    }
+
+    .actions-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .feedback-box {
+      margin-top: 15px;
+      padding: 12px;
+      border-radius: 8px;
+      background: #0a0f1c;
+      border-left: 4px solid #4a9eff;
+    }
+
+    .feedback-box.correct { border-left-color: #6bff9e; color: #6bff9e; }
+    .feedback-box.incorrect { border-left-color: #ff6b6b; color: #ff6b6b; }
+    .feedback-box.critical { border-left-color: #ff6b6b; background: #2a1a1a; }
+
+    .actions-log {
+      list-style: none;
+      margin-top: 10px;
+      max-height: 150px;
+      overflow-y: auto;
+    }
+
+    .actions-log li {
+      padding: 5px 0;
+      font-size: 0.75rem;
+      border-bottom: 1px solid #2a3a5a;
+    }
+
+    .result-panel {
+      background: #111827;
+      border: 1px solid #2a3a5a;
+      border-radius: 12px;
+      padding: 15px;
+    }
+
+    .hint {
+      font-size: 0.7rem;
+      color: #8a9abb;
+      margin-top: 10px;
+      text-align: center;
+    }
+
+    /* MODALES */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.9);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal-container {
+      background: #111827;
+      border: 1px solid #4a9eff;
+      border-radius: 16px;
+      max-width: 600px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .modal-header {
+      padding: 15px 20px;
+      border-bottom: 1px solid #2a3a5a;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-header h3 { color: #4a9eff; }
+    .modal-close {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 24px;
+      cursor: pointer;
+    }
+
+    .modal-body {
+      padding: 20px;
+    }
+
+    .detail-group {
+      margin-bottom: 12px;
+    }
+
+    .detail-group label {
+      font-size: 0.7rem;
+      color: #8a9abb;
+      display: block;
+    }
+
+    .detail-group .value {
+      font-size: 0.9rem;
+      font-weight: bold;
+    }
+
+    .analysis-box {
+      background: #0a0f1c;
+      padding: 12px;
+      border-radius: 8px;
+      margin-top: 15px;
+      border-left: 3px solid #4a9eff;
+    }
+
+    @media (max-width: 900px) {
+      .dashboard-grid { grid-template-columns: 1fr; }
+      .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+      .killchain-container { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div>
+      <h1>🔐 Laboratorio SOC – Attack Chain: RDP Brute Force → Login → Post-Explotación</h1>
+      <p style="color:#8a9abb; font-size:0.8rem;">Rol: Analista SOC Nivel 1 | MITRE: T1110 → T1003 → T1087</p>
+    </div>
+    <div class="badge badge-blue">Attack Chain Simulator</div>
+  </div>
+
+  <!-- PANTALLA DE BIENVENIDA -->
+  <div id="welcomeScreen">
+    <div style="background:#111827; border:1px solid #2a3a5a; border-radius:16px; padding:25px; margin-bottom:20px;">
+      <h2>🎯 Escenario - Attack Chain Real</h2>
+      <p style="margin:15px 0">Actuarás como analista SOC Nivel 1. Debes identificar y correlacionar una cadena de ataque completa:<br>
+      <strong>5 intentos fallidos RDP (4625) → Login exitoso (4624) → Mimikatz/Net User (Sysmon 1)</strong></p>
+      <button id="startBtn" class="btn btn-primary">▶ INICIAR SIMULACIÓN</button>
+    </div>
+
+    <div style="background:#111827; border:1px solid #2a3a5a; border-radius:16px; padding:25px;">
+      <h3>📋 Misión del alumno</h3>
+      <ul style="margin:15px 0 0 20px; line-height:1.8;">
+        <li>Generar eventos (botón "Generar evento")</li>
+        <li>Identificar 5 intentos fallidos (4625)</li>
+        <li>Detectar login exitoso sospechoso (4624)</li>
+        <li>Reconocer post-explotación (Mimikatz/Net User)</li>
+        <li>Confirmar la attack chain</li>
+        <li>Bloquear la IP atacante</li>
+        <li>Escalar a SOC Nivel 2</li>
+        <li>Exportar evidencia JSON</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- DASHBOARD (oculto al inicio) -->
+  <div id="dashboardScreen" style="display:none;">
+    <!-- CONTROLES -->
+    <div class="controls-bar">
+      <button id="nextEventBtn" class="btn btn-primary">⏭ GENERAR EVENTO</button>
+      <button id="resetBtn" class="btn btn-secondary">🔄 REINICIAR</button>
+      <button id="exportBtn" class="btn btn-secondary">⬇ EXPORTAR JSON</button>
+      <span id="simStatus" class="badge badge-green">Estado: Activo</span>
+    </div>
+
+    <!-- MÉTRICAS -->
+    <div class="metrics-grid">
+      <div class="metric-card"><div class="metric-value" id="failedCount">0</div><div class="metric-label">Intentos fallidos (4625)</div></div>
+      <div class="metric-card"><div class="metric-value" id="alertStatusText">Monitoreando</div><div class="metric-label">Estado alerta</div></div>
+      <div class="metric-card"><div class="metric-value" id="suspectIpText">192.168.10.55</div><div class="metric-label">IP sospechosa</div></div>
+      <div class="metric-card"><div class="metric-value" id="scoreText">0/100</div><div class="metric-label">Puntuación</div></div>
+    </div>
+
+    <!-- KILL CHAIN -->
+    <div class="killchain-panel">
+      <h3>🎯 MITRE ATT&CK Kill Chain <span class="badge badge-red">T1110 → T1003 → T1087</span></h3>
+      <div class="killchain-container" id="killChainContainer">
+        <div class="killchain-phase pending" data-phase="recon"><div class="phase-name">🔍 Recon</div><div class="phase-status">⏳</div></div>
+        <div class="killchain-phase pending" data-phase="bruteforce"><div class="phase-name">🔴 Brute Force (T1110)</div><div class="phase-status">⏳</div></div>
+        <div class="killchain-phase pending" data-phase="access"><div class="phase-name">🟡 Initial Access</div><div class="phase-status">⏳</div></div>
+        <div class="killchain-phase pending" data-phase="credential"><div class="phase-name">🔐 Credential Access (T1003)</div><div class="phase-status">⏳</div></div>
+        <div class="killchain-phase pending" data-phase="discovery"><div class="phase-name">🎯 Discovery (T1087)</div><div class="phase-status">⏳</div></div>
+      </div>
+      <button id="viewChainBtn" class="btn btn-secondary" style="margin-top:12px;">🔍 Ver Kill Chain detallada</button>
+    </div>
+
+    <div class="dashboard-grid">
+      <!-- TABLA EVENTOS -->
+      <div class="events-panel">
+        <h3>📥 Eventos (Windows + Sysmon)</h3>
+        <div style="overflow-x:auto;">
+          <table class="events-table">
+            <thead>
+              <tr><th>Hora</th><th>Agente</th><th>Usuario</th><th>IP</th><th>Evento</th><th>Estado</th><th>MITRE</th></tr>
+            </thead>
+            <tbody id="eventsTableBody"><tr><td colspan="7">No hay eventos. Haz clic en "Generar evento".</td></tr></tbody>
+          </table>
+        </div>
+        <div class="hint">💡 Haz clic en cualquier evento para ver análisis detallado</div>
+      </div>
+
+      <!-- PANEL DERECHO -->
+      <div class="right-panel">
+        <div class="info-panel">
+          <h3>🚨 Panel de alerta</h3>
+          <div id="alertPanel" style="padding:10px; background:#0a0f1c; border-radius:8px;">
+            <h4>Sin alerta activa</h4>
+            <p>Esperando attack chain completa...</p>
+          </div>
+          <div id="correlationPanel" style="margin-top:15px; padding:10px; background:#0a0f1c; border-radius:8px;">
+            <p><strong>Regla 100100:</strong> Brute Force + Login + Post-Explotación</p>
+            <ul id="correlationList" style="margin-left:20px;"><li>Esperando eventos...</li></ul>
+          </div>
+        </div>
+
+        <div class="info-panel">
+          <h3>🧠 Decisiones del analista</h3>
+          <div class="actions-grid">
+            <button id="analyzeBtn" class="btn btn-secondary">🔍 Analizar</button>
+            <button id="viewCorrelationBtn" class="btn btn-secondary">📊 Ver correlación</button>
+            <button id="confirmBtn" class="btn btn-danger">✅ Confirmar incidente</button>
+            <button id="blockBtn" class="btn btn-warning">🔒 Bloquear IP</button>
+            <button id="escalateBtn" class="btn btn-danger">📢 Escalar a SOC N2</button>
+            <button id="reportBtn" class="btn btn-primary">📄 Generar reporte</button>
+          </div>
+          <div id="feedbackPanel" class="feedback-box">
+            <strong>Listo</strong><br>Inicia la simulación y genera eventos.
+          </div>
+          <div style="margin-top:15px;">
+            <h4>📋 Registro de acciones</h4>
+            <ul id="actionsLog" class="actions-log"><li>Sin acciones todavía.</li></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="result-panel">
+      <h3>📋 Resultado final</h3>
+      <div id="finalResult">Completa el flujo para ver resultados.</div>
+    </div>
+  </div>
+</div>
+
+<!-- MODALES -->
+<div id="eventModal" class="modal-overlay"><div class="modal-container"><div class="modal-header"><h3>🔍 Detalle del Evento</h3><button class="modal-close" onclick="closeEventModal()">&times;</button></div><div id="eventModalBody" class="modal-body"></div></div></div>
+<div id="correlationModal" class="modal-overlay"><div class="modal-container"><div class="modal-header"><h3>🔬 Correlación - Attack Chain</h3><button class="modal-close" onclick="closeCorrelationModal()">&times;</button></div><div id="correlationModalBody" class="modal-body"></div></div></div>
+<div id="chainModal" class="modal-overlay"><div class="modal-container"><div class="modal-header"><h3>🎯 MITRE ATT&CK Kill Chain</h3><button class="modal-close" onclick="closeChainModal()">&times;</button></div><div id="chainModalBody" class="modal-body"></div></div></div>
+
+<script>
+  // ==================== ESTADO ====================
+  const state = {
+    started: false,
+    eventsList: [],
+    failedEvents: [],
+    currentIndex: 0,
+    score: 0,
+    suspiciousIp: '192.168.10.55',
+    successfulLogin: null,
+    postExploitation: null,
+    alertTriggered: false,
+    chainCompleted: false,
+    flags: { incidentConfirmed: false, ipBlocked: false, reportGenerated: false, correlationViewed: false, escalated: false }
+  };
+
+  // ==================== EVENTOS DE LA ATTACK CHAIN ====================
+  const attackEvents = [
+    { phase: "bruteforce", user: "admin", ip: "192.168.10.55", status: "failed", agent: "SRV-WIN-01", event: "4625 - Failed RDP login", desc: "Intento fallido #1", mitre: "T1110" },
+    { phase: "bruteforce", user: "admin", ip: "192.168.10.55", status: "failed", agent: "SRV-WIN-01", event: "4625 - Failed RDP login", desc: "Intento fallido #2", mitre: "T1110" },
+    { phase: "bruteforce", user: "root", ip: "192.168.10.55", status: "failed", agent: "SRV-WIN-01", event: "4625 - Failed RDP login", desc: "Intento fallido #3", mitre: "T1110" },
+    { phase: "bruteforce", user: "admin", ip: "192.168.10.55", status: "failed", agent: "SRV-WIN-01", event: "4625 - Failed RDP login", desc: "Intento fallido #4", mitre: "T1110" },
+    { phase: "bruteforce", user: "backup", ip: "192.168.10.55", status: "failed", agent: "SRV-WIN-01", event: "4625 - Failed RDP login", desc: "Intento fallido #5 - ALERTA", mitre: "T1110" },
+    { phase: "access", user: "admin", ip: "192.168.10.55", status: "success", agent: "SRV-WIN-01", event: "4624 - Successful login", desc: "Login exitoso post-brute force", mitre: "T1078" },
+    { phase: "credential", user: "admin", ip: "127.0.0.1", status: "process", agent: "SRV-WIN-01", event: "Sysmon 1 - mimikatz.exe", desc: "Credential dumping detectado", mitre: "T1003" },
+    { phase: "discovery", user: "admin", ip: "127.0.0.1", status: "process", agent: "SRV-WIN-01", event: "Sysmon 1 - net user", desc: "Account discovery detectado", mitre: "T1087" }
+  ];
+
+  // ==================== FUNCIONES AUXILIARES ====================
+  function nowTime() { return new Date().toLocaleTimeString('es-ES'); }
+  function formatTime(iso) { return new Date(iso).toLocaleTimeString('es-ES'); }
+
+  function addScore(points) {
+    state.score = Math.min(100, Math.max(0, state.score + points));
+    document.getElementById('scoreText').innerHTML = `${state.score}/100`;
+  }
+
+  function logAction(msg) {
+    state.eventsList.push({ timestamp: new Date(), action: msg });
+    const log = document.getElementById('actionsLog');
+    if (log) {
+      log.innerHTML = state.eventsList.slice().reverse().slice(0, 20).map(a => 
+        `<li><span style="color:#4a9eff;">${formatTime(a.timestamp)}</span> · ${a.action}</li>`
+      ).join('');
+      if (state.eventsList.length === 0) log.innerHTML = '<li>Sin acciones todavía.</li>';
+    }
+  }
+
+  function showFeedback(type, title, text) {
+    const panel = document.getElementById('feedbackPanel');
+    if (!panel) return;
+    panel.className = 'feedback-box';
+    if (type === 'correct') panel.classList.add('correct');
+    else if (type === 'incorrect') panel.classList.add('incorrect');
+    else if (type === 'critical') panel.classList.add('critical');
+    panel.innerHTML = `<strong>${title}</strong><br>${text}`;
+  }
+
+  function updateKillChain() {
+    const phases = document.querySelectorAll('.killchain-phase');
+    const hasBF = state.failedEvents.length >= 5;
+    const hasAccess = state.successfulLogin !== null;
+    const hasPost = state.postExploitation !== null;
+    if (phases[0]) phases[0].classList.add('completed');
+    if (hasBF && phases[1]) phases[1].classList.add('completed');
+    if (hasAccess && phases[2]) phases[2].classList.add('completed');
+    if (hasPost && phases[3]) phases[3].classList.add('completed');
+    if (hasPost && phases[4]) phases[4].classList.add('completed');
+  }
+
+  function updateMetrics() {
+    document.getElementById('failedCount').innerHTML = state.failedEvents.length;
+    document.getElementById('suspectIpText').innerHTML = state.suspiciousIp;
+    const alertSpan = document.getElementById('alertStatusText');
+    const alertPanel = document.getElementById('alertPanel');
+    if (state.chainCompleted) {
+      alertSpan.innerHTML = '🚨 CRÍTICA P1';
+      if (alertPanel) alertPanel.innerHTML = '<h4>🚨🚨 ALERTA CRÍTICA P1</h4><p>Attack Chain completa detectada. Incidente confirmado.</p>';
+    } else if (state.failedEvents.length >= 5) {
+      alertSpan.innerHTML = '⚠️ ALERTA';
+      if (alertPanel) alertPanel.innerHTML = '<h4>⚠️ ALERTA: Fuerza bruta</h4><p>5 intentos fallidos detectados. Esperando post-explotación.</p>';
+    } else {
+      alertSpan.innerHTML = 'Monitoreando';
+      if (alertPanel) alertPanel.innerHTML = '<h4>Sin alerta activa</h4><p>Esperando attack chain completa...</p>';
+    }
+  }
+
+  function evaluateChain() {
+    const hasBF = state.failedEvents.length >= 5;
+    const hasAccess = state.successfulLogin !== null;
+    const hasPost = state.postExploitation !== null;
+
+    if (hasBF && !state.alertTriggered) {
+      state.alertTriggered = true;
+      logAction("🔴 Alerta: Brute Force detectado (5 intentos fallidos)");
+      showFeedback('partial', '🔴 Alerta fuerza bruta', `5 intentos fallidos desde ${state.suspiciousIp}`);
+    }
+
+    if (hasBF && hasAccess && hasPost && !state.chainCompleted) {
+      state.chainCompleted = true;
+      logAction("🚨 ATTACK CHAIN COMPLETA: Brute Force → Login → Post-Explotación");
+      showFeedback('critical', '🚨 ALERTA CRÍTICA P1', 'Cadena de ataque completa. Incidente confirmado. Escalar a SOC Nivel 2.');
+      const corrList = document.getElementById('correlationList');
+      if (corrList) corrList.innerHTML = '<li>✅ Brute Force: 5 intentos fallidos</li><li>✅ Login exitoso post-ataque</li><li>✅ Post-explotación: Mimikatz + Net User</li><li><strong>🎯 ATTACK CHAIN COMPLETA - INCIDENTE P1</strong></li>';
+    }
+
+    updateKillChain();
+    updateMetrics();
+  }
+
+  function renderEvent(event) {
+    const tbody = document.getElementById('eventsTableBody');
+    if (!tbody) return;
+    if (tbody.querySelector('td[colspan="7"]')) tbody.innerHTML = '';
+    
+    const tr = document.createElement('tr');
+    tr.style.cursor = 'pointer';
+    const statusClass = event.status === 'failed' ? 'status-failed' : (event.status === 'success' ? 'status-success' : 'status-process');
+    tr.innerHTML = `
+      <td>${nowTime()}</td>
+      <td>${event.agent}</td>
+      <td>${event.user}</td>
+      <td><strong>${event.ip}</strong></td>
+      <td>${event.event}</td>
+      <td class="${statusClass}">${event.status === 'failed' ? '❌ FALLIDO' : (event.status === 'success' ? '✅ EXITOSO' : '🔧 PROCESO')}</td>
+      <td><span class="phase-badge">${event.mitre}</span></td>
+    `;
+    tr.onclick = () => openEventModal(event);
+    tbody.prepend(tr);
+
+    if (event.status === 'failed') {
+      state.failedEvents.push(event);
+    } else if (event.status === 'success' && state.failedEvents.length >= 5) {
+      state.successfulLogin = event;
+      logAction(`🟡 Login exitoso detectado después de ${state.failedEvents.length} intentos fallidos`);
+    } else if (event.event.includes('mimikatz') || event.event.includes('net user')) {
+      state.postExploitation = event;
+      logAction(`🔴🔴 Post-explotación detectada: ${event.event}`);
+    }
+    evaluateChain();
+  }
+
+  function openEventModal(event) {
+    const modal = document.getElementById('eventModal');
+    const body = document.getElementById('eventModalBody');
+    if (!modal || !body) return;
+    let analysis = '';
+    if (event.status === 'failed') {
+      analysis = `🔴 Intento fallido de autenticación RDP (Evento 4625). Progreso: ${state.failedEvents.length}/5 intentos. ${state.failedEvents.length >= 5 ? '⚠️ UMBRAL ALCANZADO' : 'Continuar monitoreando.'}`;
+    } else if (event.status === 'success') {
+      analysis = `🟡 Inicio de sesión exitoso (4624) después de ${state.failedEvents.length} intentos fallidos. Altamente sospechoso - el atacante encontró credenciales válidas.`;
+    } else if (event.event.includes('mimikatz')) {
+      analysis = `🔴🔴 CRÍTICO: Mimikatz ejecutado (Sysmon Event ID 1). Extrae credenciales de memoria LSASS (MITRE T1003). El atacante tiene acceso con privilegios.`;
+    } else if (event.event.includes('net user')) {
+      analysis = `🔴 Comando 'net user' ejecutado para enumerar cuentas de dominio (MITRE T1087). Actividad de reconocimiento post-compromiso.`;
+    }
+    body.innerHTML = `<div><strong>${event.event}</strong><br><br>${analysis}</div><div style="margin-top:15px;"><button class="btn btn-secondary" onclick="closeEventModal()">Cerrar</button></div>`;
+    modal.classList.add('active');
+  }
+
+  // ==================== ACCIONES ====================
+  function startSimulation() {
+    if (state.started) return;
+    state.started = true;
+    document.getElementById('welcomeScreen').style.display = 'none';
+    document.getElementById('dashboardScreen').style.display = 'block';
+    logAction("Simulación iniciada");
+    showFeedback('info', 'Simulación iniciada', 'Usa "Generar evento" para avanzar en la attack chain.');
+  }
+
+  function generateEvent() {
+    if (!state.started) { showFeedback('info', 'Inicia primero', 'Haz clic en "Iniciar simulación"'); return; }
+    if (state.currentIndex >= attackEvents.length) {
+      showFeedback('info', 'Eventos completados', 'Todos los eventos de la attack chain han sido generados.');
+      return;
+    }
+    const event = attackEvents[state.currentIndex];
+    state.currentIndex++;
+    renderEvent(event);
+    document.getElementById('simStatus').innerHTML = `Estado: Evento ${state.currentIndex}/${attackEvents.length}`;
+  }
+
+  function viewCorrelation() {
+    if (!state.chainCompleted) { showFeedback('info', 'Cadena incompleta', 'Espera a que se complete la attack chain.'); return; }
+    if (!state.flags.correlationViewed) { state.flags.correlationViewed = true; addScore(15); logAction("Vio la correlación detallada"); }
+    const modal = document.getElementById('correlationModal');
+    const body = document.getElementById('correlationModalBody');
+    if (!modal || !body) return;
+    body.innerHTML = `
+      <h4>🎯 ATTACK CHAIN CORRELACIONADA - REGLA 100100</h4>
+      <p><strong>Timeframe:</strong> 600 segundos</p>
+      <hr>
+      <h4>🔴 FASE 1: T1110 - Brute Force RDP</h4>
+      <p>${state.failedEvents.length} intentos fallidos desde ${state.suspiciousIp} (Eventos 4625)</p>
+      <h4>🟡 FASE 2: T1078 - Initial Access</h4>
+      <p>Login exitoso después del brute force (Evento 4624)</p>
+      <h4>🔴🔴 FASE 3: T1003 + T1087 - Post-Explotación</h4>
+      <p>Mimikatz ejecutado (Credential Dumping) + Net User (Account Discovery)</p>
+      <hr>
+      <p><strong>🎯 CONCLUSIÓN:</strong> Incidente P1 confirmado. Escalar a SOC Nivel 2.</p>
+      <button class="btn btn-primary" onclick="closeCorrelationModal()">Cerrar</button>
+    `;
+    modal.classList.add('active');
+  }
+
+  function confirmIncident() {
+    if (!state.chainCompleted) { showFeedback('incorrect', 'Prematuro', 'Aún no se ha completado la attack chain.'); addScore(-10); return; }
+    if (state.flags.incidentConfirmed) { showFeedback('info', 'Ya confirmado', 'El incidente P1 ya fue confirmado.'); return; }
+    state.flags.incidentConfirmed = true;
+    addScore(30);
+    logAction(`✅ Incidente P1 confirmado - Attack chain completa contra ${state.suspiciousIp}`);
+    showFeedback('correct', '✅ Correcto', 'Incidente crítico P1 confirmado.');
+  }
+
+  function blockIp() {
+    if (!state.chainCompleted) { showFeedback('incorrect', 'Bloqueo prematuro', 'Sin evidencia suficiente.'); addScore(-10); return; }
+    if (!state.flags.incidentConfirmed) { showFeedback('partial', 'Orden incorrecta', 'Primero confirma el incidente.'); addScore(-5); return; }
+    if (state.flags.ipBlocked) { showFeedback('info', 'IP ya bloqueada', 'Contención ya aplicada.'); return; }
+    state.flags.ipBlocked = true;
+    addScore(25);
+    logAction(`🔒 IP atacante bloqueada: ${state.suspiciousIp}`);
+    showFeedback('correct', '✅ Contención aplicada', 'IP bloqueada correctamente.');
+  }
+
+  function escalate() {
+    if (!state.chainCompleted) { showFeedback('warn', 'Escalación prematura', 'Recolecta más evidencia.'); return; }
+    if (state.flags.escalated) { showFeedback('info', 'Ya escalado', 'El incidente ya fue escalado.'); return; }
+    state.flags.escalated = true;
+    addScore(20);
+    logAction("📢 Incidente escalado a SOC Nivel 2");
+    showFeedback('correct', '✅ Escalación correcta', 'Incidente P1 escalado a SOC Nivel 2.');
+  }
+
+  function generateReport() {
+    if (!state.flags.ipBlocked && !state.flags.escalated) { showFeedback('partial', 'Reporte parcial', 'Idealmente reporta después de contener y escalar.'); return; }
+    if (state.flags.reportGenerated) { showFeedback('info', 'Reporte ya generado', 'El reporte ya fue creado.'); return; }
+    state.flags.reportGenerated = true;
+    addScore(20);
+    logAction("📄 Reporte final del incidente generado");
+    showFeedback('correct', '✅ Reporte generado', 'Documentación completa del incidente P1.');
+    document.getElementById('finalResult').innerHTML = `<div style="background:#1a3a5f; padding:15px; border-radius:8px;"><strong>🏆 Resultado final</strong><br>Puntuación: ${state.score}/100<br>Attack chain completada: ✅<br>Incidente P1 gestionado correctamente.</div>`;
+  }
+
+  function resetSimulation() {
+    state.started = false;
+    state.eventsList = [];
+    state.failedEvents = [];
+    state.currentIndex = 0;
+    state.score = 0;
+    state.successfulLogin = null;
+    state.postExploitation = null;
+    state.alertTriggered = false;
+    state.chainCompleted = false;
+    state.flags = { incidentConfirmed: false, ipBlocked: false, reportGenerated: false, correlationViewed: false, escalated: false };
+    document.getElementById('welcomeScreen').style.display = 'block';
+    document.getElementById('dashboardScreen').style.display = 'none';
+    document.getElementById('eventsTableBody').innerHTML = '<tr><td colspan="7">No hay eventos. Haz clic en "Generar evento".</td></tr>';
+    document.getElementById('finalResult').innerHTML = 'Completa el flujo para ver resultados.';
+    document.getElementById('scoreText').innerHTML = '0/100';
+    document.getElementById('failedCount').innerHTML = '0';
+    const phases = document.querySelectorAll('.killchain-phase');
+    phases.forEach(p => p.classList.remove('completed'));
+    logAction("🔄 Laboratorio reiniciado");
+  }
+
+  function viewKillChain() {
+    const modal = document.getElementById('chainModal');
+    const body = document.getElementById('chainModalBody');
+    if (!modal || !body) return;
+    body.innerHTML = `
+      <h4>🎯 MITRE ATT&CK Kill Chain</h4>
+      <div style="margin:15px 0;"><strong>🔍 Reconnaissance:</strong> IP objetivo identificada ${state.failedEvents.length > 0 ? '✅' : '⏳'}</div>
+      <div style="margin:15px 0;"><strong>🔴 Brute Force (T1110):</strong> ${state.failedEvents.length}/5 intentos fallidos ${state.failedEvents.length >= 5 ? '✅' : '⏳'}</div>
+      <div style="margin:15px 0;"><strong>🟡 Initial Access (T1078):</strong> Login exitoso post-ataque ${state.successfulLogin ? '✅' : '⏳'}</div>
+      <div style="margin:15px 0;"><strong>🔐 Credential Access (T1003):</strong> Mimikatz ejecutado ${state.postExploitation ? '✅' : '⏳'}</div>
+      <div style="margin:15px 0;"><strong>🎯 Discovery (T1087):</strong> Net user ejecutado ${state.postExploitation ? '✅' : '⏳'}</div>
+      <button class="btn btn-primary" onclick="closeChainModal()">Cerrar</button>
+    `;
+    modal.classList.add('active');
+  }
+
+  function exportEvidence() {
+    const evidence = {
+      lab: "Attack Chain RDP - SOC Simulator",
+      generated_at: new Date().toISOString(),
+      attack_chain_completed: state.chainCompleted,
+      suspicious_ip: state.suspiciousIp,
+      brute_force_attempts: state.failedEvents.length,
+      successful_login: state.successfulLogin,
+      post_exploitation: state.postExploitation,
+      final_score: state.score,
+      mitre_mapping: ["T1110 - Brute Force", "T1003 - Credential Dumping", "T1087 - Account Discovery"]
+    };
+    const blob = new Blob([JSON.stringify(evidence, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'attack_chain_evidence.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    logAction("Evidencia exportada");
+    showFeedback('info', 'Evidencia exportada', 'JSON descargado correctamente.');
+  }
+
+  // ==================== EVENT LISTENERS ====================
+  document.getElementById('startBtn')?.addEventListener('click', startSimulation);
+  document.getElementById('nextEventBtn')?.addEventListener('click', generateEvent);
+  document.getElementById('resetBtn')?.addEventListener('click', resetSimulation);
+  document.getElementById('exportBtn')?.addEventListener('click', exportEvidence);
+  document.getElementById('analyzeBtn')?.addEventListener('click', () => showFeedback('info', 'Análisis', 'Revisa la tabla de eventos y la kill chain.'));
+  document.getElementById('viewCorrelationBtn')?.addEventListener('click', viewCorrelation);
+  document.getElementById('confirmBtn')?.addEventListener('click', confirmIncident);
+  document.getElementById('blockBtn')?.addEventListener('click', blockIp);
+  document.getElementById('escalateBtn')?.addEventListener('click', escalate);
+  document.getElementById('reportBtn')?.addEventListener('click', generateReport);
+  document.getElementById('viewChainBtn')?.addEventListener('click', viewKillChain);
+
+  window.closeEventModal = () => document.getElementById('eventModal')?.classList.remove('active');
+  window.closeCorrelationModal = () => document.getElementById('correlationModal')?.classList.remove('active');
+  window.closeChainModal = () => document.getElementById('chainModal')?.classList.remove('active');
+
+  console.log("✅ Laboratorio cargado correctamente");
+</script>
+</body>
+</html>
